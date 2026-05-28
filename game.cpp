@@ -133,14 +133,9 @@ void Game::Simulation()
 		// GPU code
 		Buffer* b = new Buffer(GRIDSIZE * GRIDSIZE * sizeof(Point), pointGrid, Buffer::DEFAULT);
 		b->CopyToDevice(true);
-		k->SetArguments(b);
-		k->Run(GRIDSIZE * GRIDSIZE);
+		k->SetArguments(b, magic);
+		k->Run(GRIDSIZE * GRIDSIZE, 256);
 		b->CopyFromDevice(true);
-
-		for (int y = 0; y < GRIDSIZE; y++) for (int x = 0; x < GRIDSIZE; x++)
-		{
-			if (Rand( 10 ) < 0.03f) grid( x, y ).pos += float2( Rand( 0.02f + magic ), Rand( 0.12f ) );
-		}
 
 		magic += 0.0002f; // slowly increases the chance of anomalies
 		// apply constraints; 4 simulation steps: do not change this number.
