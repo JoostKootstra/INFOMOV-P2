@@ -1,5 +1,6 @@
 #include "precomp.h"
 #include "game.h"
+//#include "opencl.cpp"
 
 #define GRIDSIZE 256
 
@@ -113,17 +114,34 @@ void Game::DrawGrid()
 float magic = 0.11f;
 void Game::Simulation()
 {
+	Kernel* k = new Kernel("cl/cloth.cl", "gravity");
+
 	// simulation is exected three times per frame; do not change this.
 	for( int steps = 0; steps < 3; steps++ )
 	{
 		// verlet integration; apply gravity
-		for (int y = 0; y < GRIDSIZE; y++) for (int x = 0; x < GRIDSIZE; x++)
+
+		// Original CPU code
+		/*for (int y = 0; y < GRIDSIZE; y++) for (int x = 0; x < GRIDSIZE; x++)
 		{
 			float2 curpos = grid( x, y ).pos, prevpos = grid( x, y ).prev_pos;
 			grid( x, y ).pos += (curpos - prevpos) + float2( 0, 0.003f ); // gravity
 			grid( x, y ).prev_pos = curpos;
 			if (Rand( 10 ) < 0.03f) grid( x, y ).pos += float2( Rand( 0.02f + magic ), Rand( 0.12f ) );
+		}*/
+
+		// GPU code
+		Buffer* b = new Buffer(GRIDSIZE * GRIDSIZE * 48, pointGrid, Buffer::DEFAULT);
+		b->CopyToDevice(true);
+		k->SetArguments(b);
+		k->Run(GRIDSIZE * GRIDSIZE);
+		b->CopyFromDevice(true);
+
+		for (int y = 0; y < GRIDSIZE; y++) for (int x = 0; x < GRIDSIZE; x++)
+		{
+			if (Rand( 10 ) < 0.03f) grid( x, y ).pos += float2( Rand( 0.02f + magic ), Rand( 0.12f ) );
 		}
+
 		magic += 0.0002f; // slowly increases the chance of anomalies
 		// apply constraints; 4 simulation steps: do not change this number.
 		for (int i = 0; i < 4; i++)
