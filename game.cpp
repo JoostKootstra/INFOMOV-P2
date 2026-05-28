@@ -131,7 +131,7 @@ void Game::Simulation()
 		}*/
 
 		// GPU code
-		Buffer* b = new Buffer(GRIDSIZE * GRIDSIZE * 48, pointGrid, Buffer::DEFAULT);
+		Buffer* b = new Buffer(GRIDSIZE * GRIDSIZE * sizeof(Point), pointGrid, Buffer::DEFAULT);
 		b->CopyToDevice(true);
 		k->SetArguments(b);
 		k->Run(GRIDSIZE * GRIDSIZE);
