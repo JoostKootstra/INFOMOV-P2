@@ -23,7 +23,7 @@
 //    function to SSE. This may require additional changes to the data to
 //    avoid concurrency issues when operating on neighbouring points.
 //    The resulting code must be at least 2 times faster (using SSE) or 4
-//    times faster (using AVX) than the original  to receive the full 4 points.
+//    times faster (using AVX) than the original to receive the full 4 points.
 // 3. GPGPU, part 1: modify Game::Simulation so that it sends the cloth data
 //    to the GPU, and execute lines 119 to 126 on the GPU. After this, bring
 //    back the cloth data to the CPU and execute the remainder of the Verlet
@@ -35,7 +35,7 @@
 //    cloth on the GPU; this is (for now) outside the scope of the assignment.
 // Note that the GPGPU tasks will benefit from the SIMD tasks.
 // Also note that your final grade will be capped at 10.
-
+/*
 struct Point
 {
 	float2 pos;				// current position of the point
@@ -44,10 +44,19 @@ struct Point
 	bool fixed;				// true if this is a point in the top line of the cloth
 	float restlength[4];	// initial distance to neighbours
 };
+*/
+
+static union { float2 pos[GRIDSIZE*GRIDSIZE]; __m128 pos4[GRIDSIZE * GRIDSIZE]; };
+static union { float2 prev_pos[GRIDSIZE*GRIDSIZE]; __m128 prev_pos4[GRIDSIZE * GRIDSIZE]; };
+static union { float2 fix[GRIDSIZE*GRIDSIZE]; __m128 fix4[GRIDSIZE * GRIDSIZE]; };
+static union { bool fixedb[GRIDSIZE*GRIDSIZE]; __m128 fixed4[GRIDSIZE * GRIDSIZE]; };
+static union { float restlength[GRIDSIZE*GRIDSIZE][4]; __m128 restlength4[GRIDSIZE * GRIDSIZE][4]; };
+
 
 // grid access convenience
-Point* pointGrid = new Point[GRIDSIZE * GRIDSIZE];
-Point& grid( const uint x, const uint y ) { return pointGrid[x + y * GRIDSIZE]; }
+//Point* pointGrid = new Point[GRIDSIZE * GRIDSIZE];
+//Point& grid( const uint x, const uint y ) { return pointGrid[x + y * GRIDSIZE]; }
+int coord(const uint x, const uint y) { return x + y * GRIDSIZE; }
 
 // grid offsets for the neighbours via the four links
 int xoffset[4] = { 1, -1, 0, 0 }, yoffset[4] = { 0, 0, 1, -1 };
@@ -58,17 +67,17 @@ void Game::Init()
 	// create the cloth
 	for (int y = 0; y < GRIDSIZE; y++) for (int x = 0; x < GRIDSIZE; x++)
 	{
-		grid( x, y ).pos.x = 10 + (float)x * ((SCRWIDTH - 100) / GRIDSIZE) + y * 0.9f + Rand( 2 );
-		grid( x, y ).pos.y = 10 + (float)y * ((SCRHEIGHT - 180) / GRIDSIZE) + Rand( 2 );
-		grid( x, y ).prev_pos = grid( x, y ).pos; // all points start stationary
+		pos[coord(x,y)].x = 10 + (float)x * ((SCRWIDTH - 100) / GRIDSIZE) + y * 0.9f + Rand(2);
+		pos[coord(x,y)].y = 10 + (float)y * ((SCRHEIGHT - 180) / GRIDSIZE) + Rand(2);
+		prev_pos[coord(x,y)] = pos[coord(x,y)]; // all points start stationary
 		if (y == 0)
 		{
-			grid( x, y ).fixed = true;
-			grid( x, y ).fix = grid( x, y ).pos;
+			fixedb[coord(x,y)] = true;
+			fix[coord(x,y)] = pos[coord(x,y)];
 		}
 		else
 		{
-			grid( x, y ).fixed = false;
+			fixedb[coord(x,y)] = false;
 		}
 	}
 	for (int y = 1; y < GRIDSIZE - 1; y++) for (int x = 1; x < GRIDSIZE - 1; x++)
@@ -76,7 +85,7 @@ void Game::Init()
 		// calculate and store distance to four neighbours, allow 15% slack
 		for (int c = 0; c < 4; c++)
 		{
-			grid( x, y ).restlength[c] = length( grid( x, y ).pos - grid( x + xoffset[c], y + yoffset[c] ).pos ) * 1.15f;
+			restlength[coord(x,y)][c] = length( pos[coord(x,y)] - pos[coord(x + xoffset[c], y + yoffset[c])] ) * 1.15f;
 		}
 	}
 }
@@ -91,16 +100,16 @@ void Game::DrawGrid()
 	screen->Clear( 0 );
 	for (int y = 0; y < (GRIDSIZE - 1); y++) for (int x = 1; x < (GRIDSIZE - 2); x++)
 	{
-		const float2 p1 = grid( x, y ).pos;
-		const float2 p2 = grid( x + 1, y ).pos;
-		const float2 p3 = grid( x, y + 1 ).pos;
+		const float2 p1 = pos[coord(x,y)];
+		const float2 p2 = pos[coord(x + 1, y)];
+		const float2 p3 = pos[coord(x, y + 1)];
 		screen->Line( p1.x, p1.y, p2.x, p2.y, 0xffffff );
 		screen->Line( p1.x, p1.y, p3.x, p3.y, 0xffffff );
 	}
 	for (int y = 0; y < (GRIDSIZE - 1); y++)
 	{
-		const float2 p1 = grid( GRIDSIZE - 2, y ).pos;
-		const float2 p2 = grid( GRIDSIZE - 2, y + 1 ).pos;
+		const float2 p1 = pos[coord(GRIDSIZE - 2, y)];
+		const float2 p2 = pos[coord(GRIDSIZE - 2, y + 1)];
 		screen->Line( p1.x, p1.y, p2.x, p2.y, 0xffffff );
 	}
 }
@@ -114,7 +123,7 @@ void Game::DrawGrid()
 float magic = 0.11f;
 void Game::Simulation()
 {
-	Kernel* k = new Kernel("cl/cloth.cl", "gravity");
+	//Kernel* k = new Kernel("cl/cloth.cl", "gravity");
 
 	// simulation is exected three times per frame; do not change this.
 	for( int steps = 0; steps < 3; steps++ )
@@ -122,20 +131,22 @@ void Game::Simulation()
 		// verlet integration; apply gravity
 
 		// Original CPU code
-		/*for (int y = 0; y < GRIDSIZE; y++) for (int x = 0; x < GRIDSIZE; x++)
+		for (int y = 0; y < GRIDSIZE; y++) for (int x = 0; x < GRIDSIZE; x++)
 		{
-			float2 curpos = grid( x, y ).pos, prevpos = grid( x, y ).prev_pos;
-			grid( x, y ).pos += (curpos - prevpos) + float2( 0, 0.003f ); // gravity
-			grid( x, y ).prev_pos = curpos;
-			if (Rand( 10 ) < 0.03f) grid( x, y ).pos += float2( Rand( 0.02f + magic ), Rand( 0.12f ) );
-		}*/
+			float2 curpos = pos[coord(x,y)], prevpos = prev_pos[coord(x,y)];
+			pos[coord(x,y)] += (curpos - prevpos) + float2( 0, 0.003f ); // gravity
+			prev_pos[coord(x,y)] = curpos;
+			if (Rand( 10 ) < 0.03f) pos[coord(x,y)] += float2( Rand( 0.02f + magic ), Rand( 0.12f ) );
+		}
 
 		// GPU code
+		/*
 		Buffer* b = new Buffer(GRIDSIZE * GRIDSIZE * sizeof(Point), pointGrid, Buffer::DEFAULT);
 		b->CopyToDevice(true);
 		k->SetArguments(b, magic);
 		k->Run(GRIDSIZE * GRIDSIZE, 256);
 		b->CopyFromDevice(true);
+		*/
 
 		magic += 0.0002f; // slowly increases the chance of anomalies
 		// apply constraints; 4 simulation steps: do not change this number.
@@ -143,30 +154,30 @@ void Game::Simulation()
 		{
 			for (int y = 1; y < GRIDSIZE - 1; y++) for (int x = 1; x < GRIDSIZE - 1; x++)
 			{
-				float2 pointpos = grid( x, y ).pos;
+				float2 pointpos = pos[coord(x,y)];
 				// use springs to four neighbouring points
 				for (int linknr = 0; linknr < 4; linknr++)
 				{
-					Point& neighbour = grid( x + xoffset[linknr], y + yoffset[linknr] );
-					float distance = length( neighbour.pos - pointpos );
+					float2 neighbour = pos[coord(x + xoffset[linknr], y + yoffset[linknr])];
+					float distance = length( neighbour - pointpos );
 					if (!isfinite( distance ))
 					{
 						// warning: this happens; sometimes vertex positions 'explode'.
 						continue;
 					}
-					if (distance > grid( x, y ).restlength[linknr])
+					if (distance > restlength[coord(x,y)][linknr])
 					{
 						// pull points together
-						float extra = distance / (grid( x, y ).restlength[linknr]) - 1;
-						float2 dir = neighbour.pos - pointpos;
+						float extra = distance / (restlength[coord(x,y)][linknr]) - 1;
+						float2 dir = neighbour - pointpos;
 						pointpos += extra * dir * 0.5f;
-						neighbour.pos -= extra * dir * 0.5f;
+						neighbour -= extra * dir * 0.5f;
 					}
 				}
-				grid( x, y ).pos = pointpos;
+				pos[coord(x,y)] = pointpos;
 			}
 			// fixed line of points is fixed.
-			for (int x = 0; x < GRIDSIZE; x++) grid( x, 0 ).pos = grid( x, 0 ).fix;
+			for (int x = 0; x < GRIDSIZE; x++) pos[coord(x,0)] = fix[coord(x,0)];
 		}
 	}
 }
