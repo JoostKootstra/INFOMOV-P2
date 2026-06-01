@@ -133,7 +133,8 @@ void Game::Simulation()
 		// Original CPU code
 		for (int y = 0; y < GRIDSIZE; y++) for (int x = 0; x < GRIDSIZE; x++)
 		{
-			float2 curpos = pos[coord(x,y)], prevpos = prev_pos[coord(x,y)];
+			float2 curpos = pos[coord(x, y)];
+			float2 prevpos = prev_pos[coord(x,y)];
 			pos[coord(x,y)] += (curpos - prevpos) + float2( 0, 0.003f ); // gravity
 			prev_pos[coord(x,y)] = curpos;
 			if (Rand( 10 ) < 0.03f) pos[coord(x,y)] += float2( Rand( 0.02f + magic ), Rand( 0.12f ) );
@@ -158,7 +159,7 @@ void Game::Simulation()
 				// use springs to four neighbouring points
 				for (int linknr = 0; linknr < 4; linknr++)
 				{
-					float2 neighbour = pos[coord(x + xoffset[linknr], y + yoffset[linknr])];
+					float2& neighbour = pos[coord(x + xoffset[linknr], y + yoffset[linknr])];
 					float distance = length( neighbour - pointpos );
 					if (!isfinite( distance ))
 					{
