@@ -160,12 +160,12 @@ void Game::Simulation()
 			prev_posx4[i] = curposx;
 			prev_posy4[i] = curposy;
 			
-			for (int j = 0; j < 4; j++)
-				if (Rand(10) < 0.003f)
-				{
-					posx4[i] = _mm_add_ps(posx4[i], dX);
-					posy4[i] = _mm_add_ps(posy4[i], dY);
-				}
+
+			if (Rand(10) < 0.003f)
+			{
+				posx4[i] = _mm_add_ps(posx4[i], dX);
+				posy4[i] = _mm_add_ps(posy4[i], dY);
+			}
 			
 		}
 		/*
