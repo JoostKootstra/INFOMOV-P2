@@ -78,8 +78,8 @@ void DrawQuad()
 		}
 		else
 		{
-			vertexBuffer = CreateVBO( verts, sizeof( verts ) );
-			UVBuffer = CreateVBO( uvdata, sizeof( uvdata ) );
+			vertexBuffer = CreateVBO(verts_igp, sizeof(verts_igp));
+			UVBuffer = CreateVBO(uvdata_igp, sizeof(uvdata_igp));
 		}
 		glGenVertexArrays( 1, &vao );
 		glBindVertexArray( vao );

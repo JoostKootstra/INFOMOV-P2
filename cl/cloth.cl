@@ -1,5 +1,5 @@
-#include "template/common.h"
-#include "cl/tools.cl"
+#include "C:/Users/joost/Documents/UU/GMT/OV/P2/INFOMOV-P2/template/common.h"
+#include "C:/Users/joost/Documents/UU/GMT/OV/P2/INFOMOV-P2/cl/tools.cl"
 
 // Point structure but on the GPU :)
 typedef struct
