@@ -52,9 +52,17 @@ Point& grid( const uint x, const uint y ) { return pointGrid[x + y * GRIDSIZE]; 
 // grid offsets for the neighbours via the four links
 int xoffset[4] = { 1, -1, 0, 0 }, yoffset[4] = { 0, 0, 1, -1 };
 
+Kernel* gravity;
+Kernel* constraints;
+Kernel* fix;
+
 // initialization
 void Game::Init()
 {
+	gravity = new Kernel("cl/cloth.cl", "gravity");
+	constraints = new Kernel("cl/cloth.cl", "constraint");
+	fix = new Kernel("cl/cloth.cl", "fix");
+
 	// create the cloth
 	for (int y = 0; y < GRIDSIZE; y++) for (int x = 0; x < GRIDSIZE; x++)
 	{
@@ -114,9 +122,8 @@ void Game::DrawGrid()
 float magic = 0.11f;
 void Game::Simulation()
 {
-	Kernel* gravity = new Kernel("cl/cloth.cl", "gravity");
-	Kernel* constraints = new Kernel("cl/cloth.cl", "constraint");
-	Kernel* fix = new Kernel("cl/cloth.cl", "fix");
+	Buffer* gridbuffer = new Buffer(GRIDSIZE * GRIDSIZE * sizeof(Point), pointGrid, Buffer::DEFAULT);
+	gridbuffer->CopyToDevice(true);
 
 	// simulation is exected three times per frame; do not change this.
 	for( int steps = 0; steps < 3; steps++ )
@@ -133,11 +140,9 @@ void Game::Simulation()
 		}*/
 
 		// GPU code
-		Buffer* gridbuffer = new Buffer(GRIDSIZE * GRIDSIZE * sizeof(Point), pointGrid, Buffer::DEFAULT);
-		gridbuffer->CopyToDevice(true);
 		gravity->SetArguments(gridbuffer, magic);
 		gravity->Run(GRIDSIZE * GRIDSIZE);
-		gridbuffer->CopyFromDevice(true);
+		//gridbuffer->CopyFromDevice(true);
 
 		magic += 0.0002f; // slowly increases the chance of anomalies
 		// apply constraints; 4 simulation steps: do not change this number.
@@ -179,14 +184,14 @@ void Game::Simulation()
 
 			// Fixed line of points is fixed
 			fix->SetArguments(gridbuffer);
-			fix->Run(GRIDSIZE * GRIDSIZE);
-			gridbuffer->CopyFromDevice(true);
+			fix->Run(GRIDSIZE);
 		}
 
 		// Destroy buffer after we're done because otherwise memory issues
 		// Alternatively we could use the same buffer for each iteration but I am too lazy to figure this out :)
-		gridbuffer->~Buffer();
 	}
+	gridbuffer->CopyFromDevice(true);
+	gridbuffer->~Buffer();
 }
 
 void Game::Tick( float a_DT )
