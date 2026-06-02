@@ -55,14 +55,11 @@ int xoffset[4] = { 1, -1, 0, 0 }, yoffset[4] = { 0, 0, 1, -1 };
 Kernel* gravity;
 Kernel* constraints;
 Kernel* fix;
+Buffer* gridbuffer;
 
 // initialization
 void Game::Init()
 {
-	gravity = new Kernel("cl/cloth.cl", "gravity");
-	constraints = new Kernel("cl/cloth.cl", "constraint");
-	fix = new Kernel("cl/cloth.cl", "fix");
-
 	// create the cloth
 	for (int y = 0; y < GRIDSIZE; y++) for (int x = 0; x < GRIDSIZE; x++)
 	{
@@ -87,6 +84,12 @@ void Game::Init()
 			grid( x, y ).restlength[c] = length( grid( x, y ).pos - grid( x + xoffset[c], y + yoffset[c] ).pos ) * 1.15f;
 		}
 	}
+
+	gravity = new Kernel("cl/cloth.cl", "gravity");
+	constraints = new Kernel("cl/cloth.cl", "constraint");
+	fix = new Kernel("cl/cloth.cl", "fix");
+	gridbuffer = new Buffer(GRIDSIZE * GRIDSIZE * sizeof(Point), pointGrid, Buffer::DEFAULT);
+	gridbuffer->CopyToDevice(true);
 }
 
 // cloth rendering
@@ -122,62 +125,18 @@ void Game::DrawGrid()
 float magic = 0.11f;
 void Game::Simulation()
 {
-	Buffer* gridbuffer = new Buffer(GRIDSIZE * GRIDSIZE * sizeof(Point), pointGrid, Buffer::DEFAULT);
-	gridbuffer->CopyToDevice(true);
-
 	// simulation is exected three times per frame; do not change this.
 	for( int steps = 0; steps < 3; steps++ )
 	{
 		// verlet integration; apply gravity
-
-		// Original CPU code
-		/*for (int y = 0; y < GRIDSIZE; y++) for (int x = 0; x < GRIDSIZE; x++)
-		{
-			float2 curpos = grid( x, y ).pos, prevpos = grid( x, y ).prev_pos;
-			grid( x, y ).pos += (curpos - prevpos) + float2( 0, 0.003f ); // gravity
-			grid( x, y ).prev_pos = curpos;
-			if (Rand( 10 ) < 0.03f) grid( x, y ).pos += float2( Rand( 0.02f + magic ), Rand( 0.12f ) );
-		}*/
-
-		// GPU code
 		gravity->SetArguments(gridbuffer, magic);
 		gravity->Run(GRIDSIZE * GRIDSIZE);
-		//gridbuffer->CopyFromDevice(true);
 
 		magic += 0.0002f; // slowly increases the chance of anomalies
+
 		// apply constraints; 4 simulation steps: do not change this number.
 		for (int i = 0; i < 4; i++)
 		{
-			// Original CPU code
-			/*for (int y = 1; y < GRIDSIZE - 1; y++) for (int x = 1; x < GRIDSIZE - 1; x++)
-			{
-				float2 pointpos = grid( x, y ).pos;
-				// use springs to four neighbouring points
-				for (int linknr = 0; linknr < 4; linknr++)
-				{
-					Point& neighbour = grid( x + xoffset[linknr], y + yoffset[linknr] );
-					float distance = length( neighbour.pos - pointpos );
-					if (!isfinite( distance ))
-					{
-						// warning: this happens; sometimes vertex positions 'explode'.
-						continue;
-					}
-					if (distance > grid( x, y ).restlength[linknr])
-					{
-						// pull points together
-						float extra = distance / (grid( x, y ).restlength[linknr]) - 1;
-						float2 dir = neighbour.pos - pointpos;
-						pointpos += extra * dir * 0.5f;
-						neighbour.pos -= extra * dir * 0.5f;
-					}
-				}
-				grid( x, y ).pos = pointpos;
-			}
-
-			// fixed line of points is fixed.
-			for (int x = 0; x < GRIDSIZE; x++) grid( x, 0 ).pos = grid( x, 0 ).fix;*/
-
-			// GPU code
 			// Apply constraints
 			constraints->SetArguments(gridbuffer);
 			constraints->Run(GRIDSIZE * GRIDSIZE);
@@ -186,12 +145,8 @@ void Game::Simulation()
 			fix->SetArguments(gridbuffer);
 			fix->Run(GRIDSIZE);
 		}
-
-		// Destroy buffer after we're done because otherwise memory issues
-		// Alternatively we could use the same buffer for each iteration but I am too lazy to figure this out :)
 	}
 	gridbuffer->CopyFromDevice(true);
-	gridbuffer->~Buffer();
 }
 
 void Game::Tick( float a_DT )
