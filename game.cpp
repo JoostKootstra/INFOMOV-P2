@@ -144,9 +144,7 @@ void Game::Simulation()
 	{
 		// verlet integration; apply gravity
 
-		const __m128 gravity = _mm_set1_ps(0.001f);
-		const __m128 dX = _mm_set1_ps(Rand(0.02f + magic));
-		const __m128 dY = _mm_set1_ps(Rand(0.12f));
+		const __m128 gravity = _mm_set1_ps(0.0025f);
 
 		for (int i = 0; i < GRIDSIZE * GRIDSIZE / 4; i++) 
 		{
@@ -159,13 +157,16 @@ void Game::Simulation()
 			posy4[i] = _mm_add_ps(curposy, _mm_add_ps(_mm_sub_ps(curposy, prevposy), gravity));
 			prev_posx4[i] = curposx;
 			prev_posy4[i] = curposy;
-			
 
-			if (Rand(10) < 0.003f)
-			{
-				posx4[i] = _mm_add_ps(posx4[i], dX);
-				posy4[i] = _mm_add_ps(posy4[i], dY);
-			}
+			float* px = (float*)&posx4[i];
+			float* py = (float*)&posy4[i];
+
+			for (int j = 0; j < 4; j++)
+				if (Rand(10) < 0.03f)
+				{
+					px[j] += Rand(0.09f + magic);
+					py[j] += Rand(0.12f);
+				}
 			
 		}
 		/*
