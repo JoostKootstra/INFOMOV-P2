@@ -114,7 +114,6 @@ void Game::DrawGrid()
 float magic = 0.11f;
 void Game::Simulation()
 {
-	Kernel* k = new Kernel("cl/cloth.cl", "gravity");
 
 	// simulation is exected three times per frame; do not change this.
 	for( int steps = 0; steps < 3; steps++ )
@@ -122,20 +121,13 @@ void Game::Simulation()
 		// verlet integration; apply gravity
 
 		// Original CPU code
-		/*for (int y = 0; y < GRIDSIZE; y++) for (int x = 0; x < GRIDSIZE; x++)
+		for (int y = 0; y < GRIDSIZE; y++) for (int x = 0; x < GRIDSIZE; x++)
 		{
 			float2 curpos = grid( x, y ).pos, prevpos = grid( x, y ).prev_pos;
 			grid( x, y ).pos += (curpos - prevpos) + float2( 0, 0.003f ); // gravity
 			grid( x, y ).prev_pos = curpos;
 			if (Rand( 10 ) < 0.03f) grid( x, y ).pos += float2( Rand( 0.02f + magic ), Rand( 0.12f ) );
-		}*/
-
-		// GPU code
-		Buffer* b = new Buffer(GRIDSIZE * GRIDSIZE * sizeof(Point), pointGrid, Buffer::DEFAULT);
-		b->CopyToDevice(true);
-		k->SetArguments(b, magic);
-		k->Run(GRIDSIZE * GRIDSIZE, 256);
-		b->CopyFromDevice(true);
+		}
 
 		magic += 0.0002f; // slowly increases the chance of anomalies
 		// apply constraints; 4 simulation steps: do not change this number.
