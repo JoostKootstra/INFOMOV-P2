@@ -174,7 +174,6 @@ void Game::Simulation()
 
 			// GPU code
 			// Apply constraints
-			gridbuffer->CopyToDevice(true);
 			constraints->SetArguments(gridbuffer);
 			constraints->Run(GRIDSIZE * GRIDSIZE);
 
