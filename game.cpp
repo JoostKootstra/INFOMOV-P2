@@ -114,7 +114,9 @@ void Game::DrawGrid()
 float magic = 0.11f;
 void Game::Simulation()
 {
-	Kernel* k = new Kernel("cl/cloth.cl", "gravity");
+	Kernel* gravity = new Kernel("cl/cloth.cl", "gravity");
+	Kernel* constraints = new Kernel("cl/cloth.cl", "constraint");
+	Kernel* fix = new Kernel("cl/cloth.cl", "fix");
 
 	// simulation is exected three times per frame; do not change this.
 	for( int steps = 0; steps < 3; steps++ )
@@ -131,17 +133,18 @@ void Game::Simulation()
 		}*/
 
 		// GPU code
-		Buffer* b = new Buffer(GRIDSIZE * GRIDSIZE * sizeof(Point), pointGrid, Buffer::DEFAULT);
-		b->CopyToDevice(true);
-		k->SetArguments(b, magic);
-		k->Run(GRIDSIZE * GRIDSIZE, 256);
-		b->CopyFromDevice(true);
+		Buffer* gridbuffer = new Buffer(GRIDSIZE * GRIDSIZE * sizeof(Point), pointGrid, Buffer::DEFAULT);
+		gridbuffer->CopyToDevice(true);
+		gravity->SetArguments(gridbuffer, magic);
+		gravity->Run(GRIDSIZE * GRIDSIZE);
+		gridbuffer->CopyFromDevice(true);
 
 		magic += 0.0002f; // slowly increases the chance of anomalies
 		// apply constraints; 4 simulation steps: do not change this number.
 		for (int i = 0; i < 4; i++)
 		{
-			for (int y = 1; y < GRIDSIZE - 1; y++) for (int x = 1; x < GRIDSIZE - 1; x++)
+			// Original CPU code
+			/*for (int y = 1; y < GRIDSIZE - 1; y++) for (int x = 1; x < GRIDSIZE - 1; x++)
 			{
 				float2 pointpos = grid( x, y ).pos;
 				// use springs to four neighbouring points
@@ -165,9 +168,24 @@ void Game::Simulation()
 				}
 				grid( x, y ).pos = pointpos;
 			}
+
 			// fixed line of points is fixed.
-			for (int x = 0; x < GRIDSIZE; x++) grid( x, 0 ).pos = grid( x, 0 ).fix;
+			//for (int x = 0; x < GRIDSIZE; x++) grid( x, 0 ).pos = grid( x, 0 ).fix;*/
+
+			// GPU code
+			// Apply constraints
+			constraints->SetArguments(gridbuffer);
+			constraints->Run(GRIDSIZE * GRIDSIZE);
+
+			// Fixed line of points is fixed
+			fix->SetArguments(gridbuffer);
+			fix->Run(GRIDSIZE * GRIDSIZE);
+			gridbuffer->CopyFromDevice(true);
 		}
+
+		// Destroy buffer after we're done because otherwise memory issues
+		// Alternatively we could use the same buffer for each iteration but I am too lazy to figure this out :)
+		gridbuffer->~Buffer();
 	}
 }
 
