@@ -20,7 +20,7 @@ __kernel void gravity(__global Point *grid, float magic)
 	float2 prevpos = grid[id].prev_pos;
 
 	// Apply gravity
-	grid[id].pos += (curpos - prevpos) + (float2)(0.0f, 0.001f);
+	grid[id].pos += (curpos - prevpos) + (float2)(0.0f, 0.003f);
 
 	// Get random float between 0 and 1
 	uint seed = WangHash(id);
