@@ -78,7 +78,7 @@ __kernel void constraint(__global Point* grid)
 		{
 			float extra = dist / (curpoint.restlength[linknr]) - 1;
 			float2 dir = neighborpos - curpos;
-			float2 force = (extra * 0.2f) * dir;
+			float2 force = (extra * 0.05f) * dir;
 			curpos = curpos + force;
 			neighborpos = neighborpos - force;
 			grid[neighbor_index].pos -= force * 0.5f;
