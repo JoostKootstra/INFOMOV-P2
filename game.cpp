@@ -46,11 +46,17 @@ struct Point
 };
 */
 
-static union { float2 pos[GRIDSIZE*GRIDSIZE]; __m128 pos4[GRIDSIZE * GRIDSIZE]; };
-static union { float2 prev_pos[GRIDSIZE*GRIDSIZE]; __m128 prev_pos4[GRIDSIZE * GRIDSIZE]; };
-static union { float2 fix[GRIDSIZE*GRIDSIZE]; __m128 fix4[GRIDSIZE * GRIDSIZE]; };
-static union { bool fixedb[GRIDSIZE*GRIDSIZE]; __m128 fixed4[GRIDSIZE * GRIDSIZE]; };
-static union { float restlength[GRIDSIZE*GRIDSIZE][4]; __m128 restlength4[GRIDSIZE * GRIDSIZE][4]; };
+static union { float posx[GRIDSIZE*GRIDSIZE]; __m128 posx4[GRIDSIZE * GRIDSIZE / 4]; };
+static union { float posy[GRIDSIZE*GRIDSIZE]; __m128 posy4[GRIDSIZE * GRIDSIZE / 4]; };
+
+static union { float prev_posx[GRIDSIZE*GRIDSIZE]; __m128 prev_posx4[GRIDSIZE * GRIDSIZE / 4]; };
+static union { float prev_posy[GRIDSIZE*GRIDSIZE]; __m128 prev_posy4[GRIDSIZE * GRIDSIZE / 4]; };
+
+static union { float fixx[GRIDSIZE*GRIDSIZE]; __m128 fix4[GRIDSIZE * GRIDSIZE / 4]; };
+static union { float fixy[GRIDSIZE * GRIDSIZE]; __m128 fixy4[GRIDSIZE * GRIDSIZE / 4]; };
+
+static union { bool fixedb[GRIDSIZE*GRIDSIZE]; __m128 fixed4[GRIDSIZE * GRIDSIZE / 4]; };
+static union { float restlength[GRIDSIZE*GRIDSIZE][4]; __m128 restlength4[GRIDSIZE * GRIDSIZE / 4][4]; };
 
 
 // grid access convenience
@@ -67,13 +73,18 @@ void Game::Init()
 	// create the cloth
 	for (int y = 0; y < GRIDSIZE; y++) for (int x = 0; x < GRIDSIZE; x++)
 	{
-		pos[coord(x,y)].x = 10 + (float)x * ((SCRWIDTH - 100) / GRIDSIZE) + y * 0.9f + Rand(2);
-		pos[coord(x,y)].y = 10 + (float)y * ((SCRHEIGHT - 180) / GRIDSIZE) + Rand(2);
-		prev_pos[coord(x,y)] = pos[coord(x,y)]; // all points start stationary
+		posx[coord(x, y)] = 10 + (float)x * ((SCRWIDTH - 100) / GRIDSIZE) + y * 0.9f + Rand(2);
+		posy[coord(x, y)] = 10 + (float)y * ((SCRHEIGHT - 180) / GRIDSIZE) + Rand(2);
+		//pos[coord(x,y)].x = 10 + (float)x * ((SCRWIDTH - 100) / GRIDSIZE) + y * 0.9f + Rand(2);
+		//pos[coord(x,y)].y = 10 + (float)y * ((SCRHEIGHT - 180) / GRIDSIZE) + Rand(2);
+		prev_posx[coord(x, y)] = posx[coord(x, y)];
+		prev_posy[coord(x, y)] = posy[coord(x, y)];
+		//prev_pos[coord(x,y)] = pos[coord(x,y)]; // all points start stationary
 		if (y == 0)
 		{
-			fixedb[coord(x,y)] = true;
-			fix[coord(x,y)] = pos[coord(x,y)];
+			fixedb[coord(x, y)] = true;
+			fixx[coord(x, y)] = posx[coord(x, y)];
+			fixy[coord(x, y)] = posy[coord(x, y)];
 		}
 		else
 		{
@@ -85,7 +96,10 @@ void Game::Init()
 		// calculate and store distance to four neighbours, allow 15% slack
 		for (int c = 0; c < 4; c++)
 		{
-			restlength[coord(x,y)][c] = length( pos[coord(x,y)] - pos[coord(x + xoffset[c], y + yoffset[c])] ) * 1.15f;
+			restlength[coord(x,y)][c] 
+				= length( 
+					float2(posx[coord(x, y)], posy[coord(x, y)]) - 
+					float2(posx[coord(x + xoffset[c], y + yoffset[c])], posy[coord(x + xoffset[c], y + yoffset[c])]) ) * 1.15f;
 		}
 	}
 }
@@ -100,16 +114,16 @@ void Game::DrawGrid()
 	screen->Clear( 0 );
 	for (int y = 0; y < (GRIDSIZE - 1); y++) for (int x = 1; x < (GRIDSIZE - 2); x++)
 	{
-		const float2 p1 = pos[coord(x,y)];
-		const float2 p2 = pos[coord(x + 1, y)];
-		const float2 p3 = pos[coord(x, y + 1)];
+		const float2 p1 = float2(posx[coord(x, y)], posy[coord(x, y)]);
+		const float2 p2 = float2(posx[coord(x + 1, y)], posy[coord(x + 1, y)]);
+		const float2 p3 = float2(posx[coord(x, y + 1)], posy[coord(x, y + 1)]);
 		screen->Line( p1.x, p1.y, p2.x, p2.y, 0xffffff );
 		screen->Line( p1.x, p1.y, p3.x, p3.y, 0xffffff );
 	}
 	for (int y = 0; y < (GRIDSIZE - 1); y++)
 	{
-		const float2 p1 = pos[coord(GRIDSIZE - 2, y)];
-		const float2 p2 = pos[coord(GRIDSIZE - 2, y + 1)];
+		const float2 p1 = float2(posx[coord(GRIDSIZE - 2, y)], posy[coord(GRIDSIZE - 2, y)]);
+		const float2 p2 = float2(posx[coord(GRIDSIZE - 2, y + 1)], posy[coord(GRIDSIZE - 2, y + 1)]);
 		screen->Line( p1.x, p1.y, p2.x, p2.y, 0xffffff );
 	}
 }
@@ -130,15 +144,51 @@ void Game::Simulation()
 	{
 		// verlet integration; apply gravity
 
-		// Original CPU code
+		const __m128 gravity = _mm_set1_ps(0.001f);
+		const __m128 dX = _mm_set1_ps(Rand(0.02f + magic));
+		const __m128 dY = _mm_set1_ps(Rand(0.12f));
+
+		for (int i = 0; i < GRIDSIZE * GRIDSIZE / 4; i++) 
+		{
+			__m128 curposx = posx4[i];
+			__m128 curposy = posy4[i];
+			__m128 prevposx = prev_posx4[i];
+			__m128 prevposy = prev_posy4[i];
+
+			posx4[i] = _mm_add_ps(curposx, _mm_sub_ps(curposx, prevposx));
+			posy4[i] = _mm_add_ps(curposy, _mm_add_ps(_mm_sub_ps(curposy, prevposy), gravity));
+			prev_posx4[i] = curposx;
+			prev_posy4[i] = curposy;
+			
+			for (int j = 0; j < 4; j++)
+				if (Rand(10) < 0.003f)
+				{
+					posx4[i] = _mm_add_ps(posx4[i], dX);
+					posy4[i] = _mm_add_ps(posy4[i], dY);
+				}
+			
+		}
+		/*
 		for (int y = 0; y < GRIDSIZE; y++) for (int x = 0; x < GRIDSIZE; x++)
 		{
-			float2 curpos = pos[coord(x, y)];
-			float2 prevpos = prev_pos[coord(x,y)];
-			pos[coord(x,y)] += (curpos - prevpos) + float2( 0, 0.003f ); // gravity
-			prev_pos[coord(x,y)] = curpos;
-			if (Rand( 10 ) < 0.03f) pos[coord(x,y)] += float2( Rand( 0.02f + magic ), Rand( 0.12f ) );
+			float curposx = posx[coord(x, y)];
+			float curposy = posy[coord(x, y)];
+			float prevposx = prev_posx[coord(x, y)];
+			float prevposy = prev_posy[coord(x, y)];
+			posx[coord(x, y)] += curposx - prevposx;
+			posy[coord(x, y)] += (curposy - prevposy) + 0.003f; // gravity
+			//pos[coord(x,y)] += (curpos - prevpos) + float2( 0, 0.003f ); // gravity
+			prev_posx[coord(x, y)] = curposx;
+			prev_posy[coord(x, y)] = curposy;
+			//prev_pos[coord(x,y)] = curpos;
+			if (Rand(10) < 0.03f) //pos[coord(x, y)] += float2(Rand(0.02f + magic), Rand(0.12f));
+			{
+				posx[coord(x, y)] += Rand(0.02f + magic);
+				posy[coord(x, y)] += Rand(0.12f);
+			}
+				
 		}
+		*/
 
 		// GPU code
 		/*
@@ -151,15 +201,24 @@ void Game::Simulation()
 
 		magic += 0.0002f; // slowly increases the chance of anomalies
 		// apply constraints; 4 simulation steps: do not change this number.
+		
 		for (int i = 0; i < 4; i++)
 		{
 			for (int y = 1; y < GRIDSIZE - 1; y++) for (int x = 1; x < GRIDSIZE - 1; x++)
 			{
-				float2 pointpos = pos[coord(x,y)];
+				//float2 pointpos = pos[coord(x,y)];
+				float2 pointpos = float2(posx[coord(x, y)], posy[coord(x, y)]);
 				// use springs to four neighbouring points
 				for (int linknr = 0; linknr < 4; linknr++)
 				{
-					float2& neighbour = pos[coord(x + xoffset[linknr], y + yoffset[linknr])];
+					//float2& neighbour = float2(posx[coord(x + xoffset[linknr], y + yoffset[linknr])], 
+											   //posy[coord(x + xoffset[linknr], y + yoffset[linknr])]);
+
+					float& neighbourx = posx[coord(x + xoffset[linknr], y + yoffset[linknr])];
+					float& neighboury = posy[coord(x + xoffset[linknr], y + yoffset[linknr])];
+					float2 neighbour = float2(neighbourx, neighboury);
+
+					//float2& neighbour = pos[coord(x + xoffset[linknr], y + yoffset[linknr])];
 					float distance = length( neighbour - pointpos );
 					if (!isfinite( distance ))
 					{
@@ -172,14 +231,22 @@ void Game::Simulation()
 						float extra = distance / (restlength[coord(x,y)][linknr]) - 1;
 						float2 dir = neighbour - pointpos;
 						pointpos += extra * dir * 0.5f;
-						neighbour -= extra * dir * 0.5f;
+						neighbourx -= extra * dir.x * 0.5f;
+						neighboury -= extra * dir.y * 0.5f;
 					}
 				}
-				pos[coord(x,y)] = pointpos;
+				posx[coord(x, y)] = pointpos.x;
+				posy[coord(x, y)] = pointpos.y;
+				//pos[coord(x,y)] = pointpos;
 			}
 			// fixed line of points is fixed.
-			for (int x = 0; x < GRIDSIZE; x++) pos[coord(x,0)] = fix[coord(x,0)];
+			for (int x = 0; x < GRIDSIZE; x++) //pos[coord(x,0)] = fix[coord(x,0)];
+			{
+				posx[coord(x, 0)] = fixx[coord(x, 0)];
+				posy[coord(x, 0)] = fixy[coord(x, 0)];
+			}
 		}
+		
 	}
 }
 
