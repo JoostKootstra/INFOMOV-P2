@@ -80,8 +80,6 @@ __kernel void constraint(__global Point* grid)
 			float2 dir = neighborpos - curpos;
 			float2 force = (extra * 0.05f) * dir;
 			grid[id].pos += force;
-			//curpos += force;
-			//neighborpos = neighborpos - force;
 			grid[neighbor_index].pos -= force * 0.5f;
 			// Note on the line above: since we do not atomically add and subtract the float2s, we need to compensate for that.
 			// So, we compensate by scaling the force initially lower than usual (0.25f), and then applying a negative force
@@ -89,7 +87,6 @@ __kernel void constraint(__global Point* grid)
 		}
 	}
 
-	//grid[id].pos = curpos;
 	return;
 }
 
