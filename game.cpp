@@ -170,7 +170,7 @@ void Game::Simulation()
 			}
 
 			// fixed line of points is fixed.
-			//for (int x = 0; x < GRIDSIZE; x++) grid( x, 0 ).pos = grid( x, 0 ).fix;*/
+			for (int x = 0; x < GRIDSIZE; x++) grid( x, 0 ).pos = grid( x, 0 ).fix;*/
 
 			// GPU code
 			// Apply constraints

@@ -20,13 +20,13 @@ __kernel void gravity(__global Point *grid, float magic)
 	float2 prevpos = grid[id].prev_pos;
 
 	// Apply gravity
-	grid[id].pos += (curpos - prevpos) + (float2)(0.0f, 0.003f);
+	grid[id].pos += (curpos - prevpos) + (float2)(0.0f, 0.001f);
 
 	// Get random float between 0 and 1
 	uint seed = WangHash(id);
 	float r0 = RandomFloat(&seed);
 
-	if ((r0 * 10.0f) < 0.03f)
+	if ((r0 * 10.0f) < 0.01f)
 	{
 		// Get two more random floats
 		float r1 = RandomFloat(&seed);
@@ -80,6 +80,7 @@ __kernel void constraint(__global Point* grid)
 			float2 dir = neighborpos - curpos;
 			float2 force = (extra * 0.05f) * dir;
 			grid[id].pos += force;
+			//curpos += force;
 			//neighborpos = neighborpos - force;
 			grid[neighbor_index].pos -= force * 0.5f;
 			// Note on the line above: since we do not atomically add and subtract the float2s, we need to compensate for that.
