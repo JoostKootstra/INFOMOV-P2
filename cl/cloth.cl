@@ -12,15 +12,20 @@ typedef struct
 } Point;
 
 // Applies gravity
-__kernel void gravity(__global Point *grid, float magic)
+__kernel void gravity(__global float *posx, __global float *posy, __global float *prev_posx, __global float *prev_posy, float magic)
 {
 	int id = get_global_id(0);
 
-	float2 curpos = grid[id].pos;
-	float2 prevpos = grid[id].prev_pos;
+	float curposx = posx[id];
+	float curposy = posy[id];
+	float prevposx = prev_posx[id];
+	float prevposy = prev_posy[id];
 
 	// Apply gravity
-	grid[id].pos += (curpos - prevpos) + (float2)(0.0f, 0.001f);
+	posx[id] += curposx - prevposx;
+	posy[id] += (curposy - prevposy) + 0.001f;
+	prev_posx[id] = curposx;
+	prev_posy[id] = curposy;
 
 	// Get random float between 0 and 1
 	uint seed = WangHash(id);
@@ -33,10 +38,9 @@ __kernel void gravity(__global Point *grid, float magic)
 		float r2 = RandomFloat(&seed);
 
 		// Apply magic stuff based on random floats (scaled)
-		grid[id].pos += (float2)((r1 * (0.02f + magic)), (r2 * 0.12f));
+		posx[id] += (r1 * (0.02f + magic));
+		posy[id] += (r2 * 0.12f);
 	}
-
-	grid[id].prev_pos = curpos;
 	return;
 }
 
@@ -44,7 +48,7 @@ __kernel void gravity(__global Point *grid, float magic)
 // Generally, this is not the best method to handle this, since it would probably be better to either do:
 // 1. Do some "checkerboard"-like calculations by separating into alternating neighborhoods, or
 // 2. Rewrite the Point data structure such that it stores x and y separately, which I can then use to atomically do calculations
-__kernel void constraint(__global Point* grid)
+__kernel void constraint(__global float *posx, __global float *posy, __global float *prev_posx, __global float *prev_posy, __global float *restlength)
 {
 	// offsets for the neighbors later on
 	int xoffset[4] = { 1, -1, 0, 0 };
@@ -59,45 +63,55 @@ __kernel void constraint(__global Point* grid)
 	if (x == 0 || y == 0 || x == 255 || y == 255)
 		return;
 
-	Point curpoint = grid[id];
-	float2 curpos = curpoint.pos;
+	float2 curpos = (float2)(posx[id], posy[id]);
 
 	// Go through the neigobrs
 	for (int linknr = 0; linknr < 4; linknr++)
 	{
 		// Get neighbor and its position, and calculate distance
-		int neighbor_index = (x + xoffset[linknr]) + ((y + yoffset[linknr]) * 256);
-		Point neighbor = grid[neighbor_index];
-		float2 neighborpos = neighbor.prev_pos;
+		int neighbor_index = x + xoffset[linknr] + (y + yoffset[linknr]) * 256;
+		float neighborx = posx[neighbor_index];
+		float neighbory = posy[neighbor_index];
+		float2 neighborpos = (float2)(neighborx, neighbory);
 		float dist = length(neighborpos - curpos);
 
 		if (!isfinite(dist))
 			continue;
 
-		if (dist > curpoint.restlength[linknr])
+		if (dist > restlength[id * 4 + linknr])
 		{
-			float extra = dist / (curpoint.restlength[linknr]) - 1;
+			float extra = dist / (restlength[id * 4 + linknr]) - 1;
 			float2 dir = neighborpos - curpos;
 			float2 force = (extra * 0.05f) * dir;
-			grid[id].pos += force;
-			grid[neighbor_index].pos -= force * 0.5f;
+			float scale = 1.5f;
+			curpos += force;
+			posx[neighbor_index] -= force.x * scale;
+			posy[neighbor_index] -= force.y * scale;
+			//grid[neighbor_index].pos -= force * 0.5f;
 			// Note on the line above: since we do not atomically add and subtract the float2s, we need to compensate for that.
 			// So, we compensate by scaling the force initially lower than usual (0.25f), and then applying a negative force
 			// on the neighbor by an even lower factor.
 		}
 	}
+	posx[id] = curpos.x;
+	posy[id] = curpos.y;
 
 	return;
 }
 
 // Applies the fixed line for all grid positions where y = 0
-__kernel void fix(__global Point* grid)
+__kernel void fix(__global float *posx, __global float *posy, __global float *fixx, __global float *fixy)
 {
 	int id = get_global_id(0);
 	int y = id / 256;
 
 	if (y == 0)
-		grid[id].pos = grid[id].fix;
+	{
+		posx[id] = fixx[id];
+		posy[id] = fixy[id];
+	}
+		
+
 
 	return;
 }
