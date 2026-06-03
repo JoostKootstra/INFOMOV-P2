@@ -60,7 +60,7 @@ __kernel void constraint(__global float *posx, __global float *posy, __global fl
 	int y = id >> 8;
 
 	// In the regular CPU code, the for-loop starts at x and y = 1, and ends at x and y = GRIDSIZE - 1, aka 255.
-	if (x == 0 || y == 0 || x == 255 || y == 255)
+	if (x == 0 || y == 0 || x == 256 || y == 256)
 		return;
 
 	float2 curpos = (float2)(posx[id], posy[id]);
@@ -83,7 +83,7 @@ __kernel void constraint(__global float *posx, __global float *posy, __global fl
 			float extra = dist / (restlength[id * 4 + linknr]) - 1;
 			float2 dir = neighborpos - curpos;
 			float2 force = (extra * 0.05f) * dir;
-			float scale = 1.0f;
+			float scale = 0.5f;
 			curpos += force;
 			posx[neighbor_index] -= force.x * scale;
 			posy[neighbor_index] -= force.y * scale;
