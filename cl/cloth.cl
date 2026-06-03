@@ -83,7 +83,7 @@ __kernel void constraint(__global float *posx, __global float *posy, __global fl
 			float extra = dist / (restlength[id * 4 + linknr]) - 1;
 			float2 dir = neighborpos - curpos;
 			float2 force = (extra * 0.05f) * dir;
-			float scale = 0.5f;
+			float scale = 1.0f;
 			curpos += force;
 			posx[neighbor_index] -= force.x * scale;
 			posy[neighbor_index] -= force.y * scale;
