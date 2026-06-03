@@ -152,7 +152,7 @@ void Game::Simulation()
 	Buffer* fixx_buf		= new Buffer(GRIDSIZE * GRIDSIZE * sizeof(float), fixx, Buffer::DEFAULT);
 	Buffer* fixy_buf		= new Buffer(GRIDSIZE * GRIDSIZE * sizeof(float), fixy, Buffer::DEFAULT);
 	Buffer* fixed_buf		= new Buffer(GRIDSIZE * GRIDSIZE * sizeof(bool), fixedb, Buffer::DEFAULT);
-	Buffer* restlength_buf	= new Buffer(GRIDSIZE * GRIDSIZE * sizeof(float), (float*)restlength, Buffer::DEFAULT);
+	Buffer* restlength_buf	= new Buffer(GRIDSIZE * GRIDSIZE * 4 * sizeof(float), (float*)restlength, Buffer::DEFAULT);
 	posx_buf		->CopyToDevice(true);
 	posy_buf		->CopyToDevice(true);
 	prev_posx_buf	->CopyToDevice(true);
