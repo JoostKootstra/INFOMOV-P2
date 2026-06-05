@@ -4,3 +4,7 @@ To still be able to hand in a working project, we decided to separate the SIMD a
 If you want to run the gpu implementation, line 40 should say "#if 1". 
 If you want to run the SIMD implementation, line 40 should say "#if 0".
 
+# Speed up
+- Initial speed: average 20ms with high peaks at 23ms
+- SIMD: average 15ms with high peaks at 17ms
+- GPGPU: consistently between 1.3ms and 1.5ms

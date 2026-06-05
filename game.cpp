@@ -311,6 +311,7 @@ void Game::Simulation()
 			float* px = (float*)&posx4[i];
 			float* py = (float*)&posy4[i];
 
+			// apply random force to each lane, could not find good random for __m128
 			for (int j = 0; j < 4; j++)
 				if (Rand(10) < 0.03f)
 				{
