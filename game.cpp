@@ -188,11 +188,11 @@ void Game::Simulation()
 			fix->SetArguments(gridbuffer);
 			fix->Run(GRIDSIZE);
 		}
-
-		// Destroy buffer after we're done because otherwise memory issues
-		// Alternatively we could use the same buffer for each iteration but I am too lazy to figure this out :)
 	}
 	gridbuffer->CopyFromDevice(true);
+
+	// Destroy buffer after we're done because otherwise memory issues
+	// Alternatively we could use the same buffer for each iteration but I am too lazy to figure this out :)
 	gridbuffer->~Buffer();
 }
 #else
